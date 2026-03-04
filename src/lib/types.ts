@@ -28,6 +28,8 @@ export interface PayoffInput {
   premium: number;
   quantity: number;
   currentPrice: number;
+  priceRangeLow?: number;
+  priceRangeHigh?: number;
 }
 
 export interface PayoffDataPoint {

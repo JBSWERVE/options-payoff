@@ -9,6 +9,7 @@ interface ContractTableProps {
   selectedContract: OptionContract | null;
   onSelect: (contract: OptionContract) => void;
   disabled?: boolean;
+  currentPrice?: number;
 }
 
 function formatVol(n: number) {
@@ -22,6 +23,7 @@ export function ContractTable({
   selectedContract,
   onSelect,
   disabled = false,
+  currentPrice,
 }: ContractTableProps) {
   const [tab, setTab] = useState<"calls" | "puts">("calls");
   const contracts = tab === "calls" ? calls : puts;
@@ -86,13 +88,23 @@ export function ContractTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((c) => {
+            {sorted.map((c, i) => {
               const isSelected = selectedContract?.contractSymbol === c.contractSymbol;
+              const nextStrike = sorted[i + 1]?.strike;
+              const showPriceLine =
+                currentPrice !== undefined &&
+                c.strike < currentPrice &&
+                (nextStrike === undefined || nextStrike >= currentPrice);
+
               return (
                 <tr
                   key={c.contractSymbol}
                   onClick={() => !disabled && onSelect(c)}
-                  className={`border-t border-border-custom cursor-pointer transition-colors ${
+                  className={`border-t cursor-pointer transition-colors ${
+                    showPriceLine
+                      ? "border-b-2 border-b-accent border-t-border-custom"
+                      : "border-t-border-custom"
+                  } ${
                     isSelected
                       ? "bg-accent/15 text-accent"
                       : "text-text-primary hover:bg-surface-elevated"
@@ -103,7 +115,12 @@ export function ContractTable({
                   <td className="text-right px-2.5 py-1.5">${c.bid.toFixed(2)}</td>
                   <td className="text-right px-2.5 py-1.5">${c.ask.toFixed(2)}</td>
                   <td className="text-right px-2.5 py-1.5">{formatVol(c.volume)}</td>
-                  <td className="text-right px-2.5 py-1.5">{formatVol(c.openInterest)}</td>
+                  <td className="text-right px-2.5 py-1.5">
+                    {formatVol(c.openInterest)}
+                    {showPriceLine && (
+                      <span className="ml-1 text-accent text-[10px]">&#9650; ${currentPrice?.toFixed(0)}</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}

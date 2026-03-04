@@ -1,4 +1,5 @@
 "use client";
+import { useMemo } from "react";
 import { PayoffDataPoint } from "@/lib/types";
 import { TimePeriod } from "@/lib/payoff";
 import { formatCurrency } from "@/lib/formatting";
@@ -14,34 +15,45 @@ interface PayoffTableProps {
   maxLoss: number;
 }
 
-function PnlCell({ value }: { value: number }) {
-  const color =
-    value > 0 ? "text-profit" : value < 0 ? "text-loss" : "text-text-muted";
-  return (
-    <td className={`px-3 py-2.5 text-right font-mono text-xs tabular-nums ${color}`}>
-      {formatCurrency(value)}
-    </td>
-  );
+function formatCompactPnl(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 10000) return `${sign}${(abs / 1000).toFixed(0)}k`;
+  if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(1)}k`;
+  return `${sign}${abs.toFixed(0)}`;
 }
 
-function ReturnCell({ value, totalPremium }: { value: number; totalPremium: number }) {
-  if (totalPremium === 0) {
-    return <td className="px-3 py-2.5 text-right font-mono text-xs tabular-nums text-text-muted">—</td>;
+function pnlToColor(value: number, maxProfit: number, maxLoss: number): string {
+  if (value === 0) return "transparent";
+  if (value > 0) {
+    const intensity = Math.min(value / Math.max(maxProfit, 1), 1);
+    return `rgba(0, 212, 170, ${(intensity * 0.55).toFixed(3)})`;
   }
-  const pct = (value / Math.abs(totalPremium)) * 100;
-  const color = pct > 0 ? "text-profit" : pct < 0 ? "text-loss" : "text-text-muted";
-  const sign = pct >= 0 ? "+" : "";
-  return (
-    <td className={`px-3 py-2.5 text-right font-mono text-xs tabular-nums ${color}`}>
-      {sign}{pct.toFixed(1)}%
-    </td>
-  );
+  const intensity = Math.min(Math.abs(value) / Math.max(Math.abs(maxLoss), 1), 1);
+  return `rgba(255, 68, 102, ${(intensity * 0.55).toFixed(3)})`;
 }
 
-function isNearValue(price: number, target: number | null, data: PayoffDataPoint[]): boolean {
-  if (target === null || data.length < 2) return false;
-  const step = data.length > 1 ? Math.abs(data[1].stockPrice - data[0].stockPrice) : 1;
+function isNearValue(price: number, target: number | null, step: number): boolean {
+  if (target === null) return false;
   return Math.abs(price - target) < step / 2;
+}
+
+interface MonthGroup {
+  month: string;
+  span: number;
+}
+
+function getMonthGroups(timePeriods: TimePeriod[]): MonthGroup[] {
+  const groups: MonthGroup[] = [];
+  for (const tp of timePeriods) {
+    const last = groups[groups.length - 1];
+    if (last && last.month === tp.month) {
+      last.span++;
+    } else {
+      groups.push({ month: tp.month, span: 1 });
+    }
+  }
+  return groups;
 }
 
 export function PayoffTable({
@@ -54,6 +66,24 @@ export function PayoffTable({
   maxProfit,
   maxLoss,
 }: PayoffTableProps) {
+  // Compute global max/min across ALL cells for color normalization
+  const { globalMax, globalMin } = useMemo(() => {
+    let max = 0;
+    let min = 0;
+    for (const row of data) {
+      for (const tp of timePeriods) {
+        const v = row[tp.key] || 0;
+        if (v > max) max = v;
+        if (v < min) min = v;
+      }
+    }
+    return { globalMax: max, globalMin: min };
+  }, [data, timePeriods]);
+
+  const monthGroups = useMemo(() => getMonthGroups(timePeriods), [timePeriods]);
+  const step = data.length > 1 ? Math.abs(data[0].stockPrice - data[1].stockPrice) : 1;
+  const expirationKey = timePeriods[timePeriods.length - 1]?.key;
+
   return (
     <div className="space-y-4">
       {/* Summary bar */}
@@ -80,66 +110,94 @@ export function PayoffTable({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-auto max-h-[520px] rounded-lg border border-border-custom">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-surface-elevated z-10">
-            <tr className="border-b border-border-custom">
-              <th className="px-3 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider w-10">
-                {/* marker column */}
+      {/* Heatmap */}
+      <div className="overflow-auto max-h-[600px] rounded-lg border border-border-custom">
+        <table className="border-collapse text-[10px] font-mono">
+          <thead className="sticky top-0 z-20">
+            {/* Month row */}
+            <tr className="bg-surface-elevated">
+              <th
+                className="sticky left-0 z-30 bg-surface-elevated px-2 py-1.5 text-left text-[11px] font-medium text-text-secondary border-b border-r border-border-custom"
+                rowSpan={2}
+              >
+                Stock
               </th>
-              <th className="px-3 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                Stock Price
+              {monthGroups.map((g, i) => (
+                <th
+                  key={`${g.month}-${i}`}
+                  colSpan={g.span}
+                  className="px-1 py-1 text-center text-[11px] font-medium text-text-secondary border-b border-border-custom/50"
+                >
+                  {g.month}
+                </th>
+              ))}
+              <th
+                className="px-2 py-1 text-center text-[11px] font-medium text-text-secondary border-b border-l border-border-custom"
+                rowSpan={2}
+              >
+                +/-%
               </th>
+            </tr>
+            {/* Day row */}
+            <tr className="bg-surface-elevated">
               {timePeriods.map((tp) => (
                 <th
                   key={tp.key}
-                  className="px-3 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider"
+                  className="px-1 py-1 text-center text-text-muted font-normal border-b border-border-custom/50 min-w-[32px]"
                 >
                   {tp.label}
                 </th>
               ))}
-              <th className="px-3 py-3 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
-                % Return
-              </th>
             </tr>
           </thead>
           <tbody>
-            {data.map((row, i) => {
-              const isStrike = isNearValue(row.stockPrice, strike, data);
-              const isBreakeven = isNearValue(row.stockPrice, breakeven, data);
-              const isCurrent = isNearValue(row.stockPrice, currentPrice, data);
+            {data.map((row) => {
+              const isStrike = isNearValue(row.stockPrice, strike, step);
+              const isBreakeven = isNearValue(row.stockPrice, breakeven, step);
+              const isCurrent = isNearValue(row.stockPrice, currentPrice, step);
 
-              const isLandmark = isStrike || isBreakeven || isCurrent;
-              const borderColor = isBreakeven
-                ? "border-l-breakeven"
+              const borderClass = isBreakeven
+                ? "border-l-2 border-l-breakeven"
                 : isStrike
-                ? "border-l-accent"
+                ? "border-l-2 border-l-accent"
                 : isCurrent
-                ? "border-l-text-secondary"
+                ? "border-l-2 border-l-text-secondary"
                 : "";
 
+              const expirationPnl = row[expirationKey] || 0;
+              const pctReturn = totalPremium !== 0
+                ? (expirationPnl / Math.abs(totalPremium)) * 100
+                : 0;
+              const pctColor = pctReturn > 0 ? "text-profit" : pctReturn < 0 ? "text-loss" : "text-text-muted";
+
               return (
-                <tr
-                  key={row.stockPrice}
-                  className={`border-b border-border-custom/50 ${
-                    isLandmark ? `border-l-2 ${borderColor}` : "border-l-2 border-l-transparent"
-                  } ${
-                    i % 2 === 0 ? "bg-surface" : "bg-surface-elevated/30"
-                  } hover:bg-surface-elevated/60 transition-colors`}
-                >
-                  <td className="px-3 py-2.5 text-xs text-text-muted whitespace-nowrap">
-                    {isCurrent && "Current"}
-                    {isStrike && !isCurrent && "Strike"}
-                    {isBreakeven && !isStrike && !isCurrent && "B/E"}
+                <tr key={row.stockPrice} className={`${borderClass} hover:brightness-125 transition-all`}>
+                  {/* Stock price - sticky left */}
+                  <td className="sticky left-0 z-10 bg-surface px-2 py-1 text-[11px] tabular-nums text-text-primary border-r border-border-custom whitespace-nowrap font-medium">
+                    <span className="inline-flex items-center gap-1">
+                      {isCurrent && <span className="text-text-secondary text-[9px]">&#9654;</span>}
+                      ${row.stockPrice.toFixed(2)}
+                    </span>
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-xs tabular-nums text-text-primary">
-                    ${row.stockPrice.toFixed(2)}
+                  {/* P&L cells */}
+                  {timePeriods.map((tp) => {
+                    const value = row[tp.key] || 0;
+                    const bg = pnlToColor(value, globalMax, globalMin);
+                    const textColor = Math.abs(value) < 1 ? "text-text-muted" : "text-text-primary";
+                    return (
+                      <td
+                        key={tp.key}
+                        className={`px-1 py-1 text-center tabular-nums ${textColor} border-border-custom/20`}
+                        style={{ backgroundColor: bg }}
+                      >
+                        {formatCompactPnl(value)}
+                      </td>
+                    );
+                  })}
+                  {/* % return */}
+                  <td className={`px-2 py-1 text-right tabular-nums border-l border-border-custom ${pctColor}`}>
+                    {pctReturn >= 0 ? "+" : ""}{pctReturn.toFixed(1)}%
                   </td>
-                  {timePeriods.map((tp) => (
-                    <PnlCell key={tp.key} value={row[tp.key] || 0} />
-                  ))}
-                  <ReturnCell value={row.atExpiration || 0} totalPremium={totalPremium} />
                 </tr>
               );
             })}

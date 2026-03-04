@@ -12,6 +12,7 @@ interface ContractPickerProps {
   onExpirationChange: (date: string) => void;
   selectedContract: OptionContract | null;
   onContractChange: (contract: OptionContract | null) => void;
+  currentPrice?: number;
 }
 
 export function ContractPicker({
@@ -21,6 +22,7 @@ export function ContractPicker({
   onExpirationChange,
   selectedContract,
   onContractChange,
+  currentPrice,
 }: ContractPickerProps) {
   const expirationOptions = [
     { value: "", label: "Select expiration" },
@@ -54,6 +56,7 @@ export function ContractPicker({
           selectedContract={selectedContract}
           onSelect={onContractChange}
           disabled={!selectedExpiration}
+          currentPrice={currentPrice}
         />
       )}
     </div>
