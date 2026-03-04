@@ -52,8 +52,13 @@ export function ResultsPanel({
   };
 
   // Sync local state when props change (e.g. on recalculate)
-  if (Number(localLow) !== priceRangeLow && document.activeElement?.getAttribute("data-range") !== "low") {
-    // Will update on next render via effect-like pattern; keep simple with controlled inputs
+  const isLowFocused = typeof document !== "undefined" && document.activeElement?.getAttribute("data-range") === "low";
+  const isHighFocused = typeof document !== "undefined" && document.activeElement?.getAttribute("data-range") === "high";
+  if (Number(localLow) !== priceRangeLow && !isLowFocused) {
+    // Will update on next render
+  }
+  if (Number(localHigh) !== priceRangeHigh && !isHighFocused) {
+    // Will update on next render
   }
 
   return (

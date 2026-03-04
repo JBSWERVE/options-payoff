@@ -30,7 +30,7 @@ export function ContractQuantity({ value, onChange, onCalculate, disabled }: Con
         <Button onClick={onCalculate} disabled={disabled}>
           Calculate Payoff
         </Button>
-        <kbd className="hidden sm:inline-block whitespace-nowrap">{typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "\u2318" : "Ctrl"}+\u23CE</kbd>
+        <kbd className="hidden sm:inline-block whitespace-nowrap" suppressHydrationWarning>{typeof window !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent) ? "\u2318" : "Ctrl"}+\u23CE</kbd>
       </div>
     </div>
   );
