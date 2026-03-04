@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/Card";
 import { TickerInput } from "@/components/TickerInput";
 import { PositionSelector } from "@/components/PositionSelector";
@@ -12,6 +12,38 @@ import { useOptions } from "@/hooks/useOptions";
 import { usePayoff } from "@/hooks/usePayoff";
 import { OptionContract, PositionType, PayoffInput } from "@/lib/types";
 
+const SUBTITLES = [
+  "Analyze P&L across price scenarios and time horizons",
+  "Visualize time decay with the heatmap matrix",
+  "Find your breakeven and max profit instantly",
+  "Compare strategies before you trade",
+];
+
+function AnimatedSubtitle() {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % SUBTITLES.length);
+        setVisible(true);
+      }, 400);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <p
+      className="text-xs text-text-muted mt-1 transition-opacity duration-300"
+      style={{ opacity: visible ? 1 : 0 }}
+    >
+      {SUBTITLES[index]}
+    </p>
+  );
+}
+
 export default function Home() {
   const [symbol, setSymbol] = useState("");
   const [position, setPosition] = useState<PositionType>("buy");
@@ -22,6 +54,7 @@ export default function Home() {
   const [payoffInput, setPayoffInput] = useState<PayoffInput | null>(null);
   const [priceRangeLow, setPriceRangeLow] = useState(0);
   const [priceRangeHigh, setPriceRangeHigh] = useState(0);
+  const handleCalculateRef = useRef<() => void>(() => {});
 
   const { data: quote, isLoading: quoteLoading, error: quoteError } = useQuote(symbol);
 
@@ -90,6 +123,23 @@ export default function Home() {
     });
   }, [selectedContract, quote, position, pricePerContract, numContracts, priceRangeLow, priceRangeHigh]);
 
+  // Keep ref in sync for keyboard shortcut
+  handleCalculateRef.current = handleCalculate;
+
+  const canCalculate = !!selectedContract && !!quote && pricePerContract > 0;
+
+  // Keyboard shortcut: Ctrl/Cmd+Enter to calculate
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleCalculateRef.current();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   // Auto-recalculate when price range changes (only if already calculated)
   const handlePriceRangeChange = useCallback((low: number, high: number) => {
     setPriceRangeLow(low);
@@ -111,7 +161,6 @@ export default function Home() {
 
   const { maxProfit, maxLoss } = useMemo(() => {
     if (payoffData.length === 0 || timePeriods.length === 0) return { maxProfit: 0, maxLoss: 0 };
-    // Use expiration column (last time period) for max profit/loss
     const expKey = timePeriods[timePeriods.length - 1].key;
     const expirationValues = payoffData.map((d) => d[expKey] || 0);
     return {
@@ -120,32 +169,42 @@ export default function Home() {
     };
   }, [payoffData, timePeriods]);
 
-  const canCalculate = !!selectedContract && !!quote && pricePerContract > 0;
-
   return (
     <main className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border-custom bg-surface/50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      {/* Hero Header */}
+      <div className="hero-glow border-b border-border-custom">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between relative z-10">
           <div>
-            <h1 className="text-base font-semibold tracking-tight text-text-primary">
+            <h1 className="text-gradient text-xl font-bold tracking-tight">
               Options Payoff Calculator
             </h1>
-            <p className="text-xs text-text-muted mt-0.5">
-              Analyze P&L across price scenarios and time horizons
-            </p>
+            <AnimatedSubtitle />
           </div>
-          {quote && (
-            <div className="text-right">
-              <span className="font-mono text-xs text-text-secondary">{quote.symbol}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {quote && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-sm font-semibold text-text-primary">{quote.symbol}</span>
+                <span className="font-mono text-xs text-text-secondary">
+                  ${quote.regularMarketPrice.toFixed(2)}
+                </span>
+                <span
+                  className={`font-mono text-xs ${
+                    quote.regularMarketChange >= 0 ? "text-profit" : "text-loss"
+                  }`}
+                >
+                  {quote.regularMarketChange >= 0 ? "+" : ""}
+                  {quote.regularMarketChange.toFixed(2)} ({quote.regularMarketChangePercent.toFixed(2)}%)
+                </span>
+              </div>
+            )}
+            <kbd className="hidden sm:inline-block">/</kbd>
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Input Section */}
-        <Card>
+        <Card className="animate-fade-in">
           <div className="space-y-5">
             {/* Row 1: Ticker + Position */}
             <div className="flex flex-wrap items-end gap-6">
@@ -193,7 +252,7 @@ export default function Home() {
 
         {/* Empty State */}
         {!payoffInput && (
-          <div className="text-center py-20">
+          <div className="text-center py-20 animate-fade-in-delay">
             <div className="text-text-muted text-sm">
               {!quote
                 ? "Enter a stock ticker to begin"
@@ -205,19 +264,21 @@ export default function Home() {
         )}
 
         {/* Results */}
-        <ResultsPanel
-          data={payoffData}
-          timePeriods={timePeriods}
-          breakeven={breakeven}
-          strike={selectedContract?.strike || 0}
-          maxProfit={maxProfit}
-          maxLoss={maxLoss}
-          currentPrice={quote?.regularMarketPrice || 0}
-          totalPremium={pricePerContract * numContracts * 100}
-          priceRangeLow={priceRangeLow}
-          priceRangeHigh={priceRangeHigh}
-          onPriceRangeChange={handlePriceRangeChange}
-        />
+        <div className="animate-fade-in-delay">
+          <ResultsPanel
+            data={payoffData}
+            timePeriods={timePeriods}
+            breakeven={breakeven}
+            strike={selectedContract?.strike || 0}
+            maxProfit={maxProfit}
+            maxLoss={maxLoss}
+            currentPrice={quote?.regularMarketPrice || 0}
+            totalPremium={pricePerContract * numContracts * 100}
+            priceRangeLow={priceRangeLow}
+            priceRangeHigh={priceRangeHigh}
+            onPriceRangeChange={handlePriceRangeChange}
+          />
+        </div>
       </div>
     </main>
   );

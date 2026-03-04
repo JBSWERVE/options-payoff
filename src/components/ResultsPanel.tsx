@@ -3,6 +3,7 @@ import { useState } from "react";
 import { PayoffTable } from "./PayoffTable";
 import { Card } from "./ui/Card";
 import { Input } from "./ui/Input";
+import { Tooltip } from "./ui/Tooltip";
 import { PayoffDataPoint } from "@/lib/types";
 import { TimePeriod } from "@/lib/payoff";
 
@@ -61,6 +62,7 @@ export function ResultsPanel({
         <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wider">
           Payoff Matrix
         </h3>
+        <Tooltip content="Adjust the stock price range shown in the matrix" position="bottom">
         <div className="flex items-end gap-3">
           <span className="text-xs text-text-muted mb-2">Stock price range: $</span>
           <div className="w-24">
@@ -87,6 +89,7 @@ export function ResultsPanel({
             />
           </div>
         </div>
+        </Tooltip>
       </div>
       <PayoffTable
         data={data}

@@ -1,5 +1,6 @@
 "use client";
 import { Dropdown } from "./ui/Dropdown";
+import { Tooltip } from "./ui/Tooltip";
 import { PositionType } from "@/lib/types";
 
 const positionOptions = [
@@ -14,11 +15,13 @@ interface PositionSelectorProps {
 
 export function PositionSelector({ value, onChange }: PositionSelectorProps) {
   return (
-    <Dropdown
-      label="Position"
-      value={value}
-      options={positionOptions}
-      onChange={(v) => onChange(v as PositionType)}
-    />
+    <Tooltip content="Buy profits when price moves in your favor. Write profits from premium decay." position="bottom">
+      <Dropdown
+        label="Position"
+        value={value}
+        options={positionOptions}
+        onChange={(v) => onChange(v as PositionType)}
+      />
+    </Tooltip>
   );
 }
