@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Options Payoff Calculator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0A0A0F;
+    --surface: #12121A;
+    --surface-el: #1A1A25;
+    --border: #2A2A3A;
+    --border-focus: #4A4A6A;
+    --text-1: #E8E8ED;
+    --text-2: #8888A0;
+    --text-3: #555570;
+    --accent: #4F8CFF;
+    --accent-h: #6BA0FF;
+    --profit: #00D4AA;
+    --loss: #FF4466;
+    --breakeven: #FFB84D;
+  }
+
+  html { background: var(--bg); color: var(--text-1); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
+  body { min-height: 100vh; }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+  .header { border-bottom: 1px solid var(--border); background: rgba(18,18,26,0.5); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
+  .header-inner { max-width: 1280px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .header p { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header .symbol-badge { font-family: 'Inter', monospace; font-size: 12px; color: var(--text-2); }
+
+  .reset-btn {
+    height: 32px; padding: 0 14px; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; color: var(--text-2); font-size: 12px; font-weight: 500;
+    font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .reset-btn:hover { border-color: var(--border-focus); color: var(--text-1); background: var(--surface-el); }
+  .reset-btn svg { width: 13px; height: 13px; }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 11px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; user-select: none; }
+
+  input[type="text"], input[type="number"] {
+    height: 40px; padding: 0 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-1); font-size: 14px; font-family: 'Inter', sans-serif;
+    outline: none; transition: all 0.2s;
+  }
+  input:focus { border-color: var(--border-focus); box-shadow: 0 0 0 1px var(--accent); }
+  input::placeholder { color: var(--text-3); }
+  input:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Custom dropdown */
+  .dropdown { position: relative; user-select: none; }
+  .dropdown-trigger {
+    height: 40px; padding: 0 32px 0 12px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text-1); font-size: 13px; font-family: 'Inter', sans-serif;
+    cursor: pointer; transition: all 0.2s; display: flex; align-items: center; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; position: relative;
+  }
+  .dropdown-trigger::after {
+    content: ""; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 5px solid var(--text-2); transition: transform 0.2s;
+  }
+  .dropdown.open .dropdown-trigger::after { transform: translateY(-50%) rotate(180deg); }
+  .dropdown-trigger:hover { border-color: var(--border-focus); }
+  .dropdown-trigger.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+  .dropdown-trigger.placeholder { color: var(--text-3); }
+
+  .dropdown-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; max-height: 320px;
+    overflow-y: auto; background: var(--surface); border: 1px solid var(--border-focus);
+    border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 50;
+    padding: 4px; display: none;
+  }
+  .dropdown.open .dropdown-menu { display: block; }
+
+  .dropdown-group-label {
+    font-size: 10px; font-weight: 600; color: var(--text-3); text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 8px 10px 4px; pointer-events: none;
+  }
+  .dropdown-item {
+    padding: 8px 10px; border-radius: 5px; font-size: 13px; font-family: 'Inter', sans-serif;
+    color: var(--text-1); cursor: pointer; transition: background 0.15s; white-space: nowrap;
+  }
+  .dropdown-item:hover { background: var(--surface-el); }
+  .dropdown-item.selected { background: rgba(79,140,255,0.12); color: var(--accent); }
+
+  .btn {
+    height: 40px; padding: 0 20px; border: none; border-radius: 6px; font-size: 14px;
+    font-weight: 500; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+    background: var(--accent); color: #fff;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent-h); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .mono { font-family: 'Inter', sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .input-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+  .input-row + .input-row { margin-top: 20px; }
+
+  .quote-display { display: flex; align-items: baseline; gap: 12px; height: 40px; align-self: flex-end; flex-wrap: wrap; }
+  .quote-name { font-size: 12px; color: var(--text-2); }
+  .quote-price { font-size: 18px; font-weight: 600; }
+  .quote-change { font-size: 13px; }
+  .quote-change.up { color: var(--profit); }
+  .quote-change.down { color: var(--loss); }
+
+  .helper-text { font-size: 11px; color: var(--text-3); height: 40px; display: flex; align-items: center; }
+
+  .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-wrap { display: flex; align-items: center; gap: 8px; height: 40px; }
+  .spinner-wrap span { font-size: 12px; color: var(--text-3); }
+
+  .error-text { font-size: 12px; color: var(--loss); height: 40px; display: flex; align-items: center; }
+  .empty-state { text-align: center; padding: 80px 0; color: var(--text-3); font-size: 14px; }
+
+  /* Ticker autocomplete */
+  .ticker-wrap { position: relative; width: 140px; }
+  .autocomplete-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; width: 320px; max-height: 300px;
+    overflow-y: auto; background: var(--surface); border: 1px solid var(--border-focus);
+    border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 60;
+    padding: 4px; display: none;
+  }
+  .autocomplete-menu.open { display: block; }
+  .ac-item {
+    padding: 9px 12px; border-radius: 5px; cursor: pointer; transition: background 0.15s;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .ac-item:hover, .ac-item.active { background: var(--surface-el); }
+  .ac-item-left { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .ac-symbol { font-size: 13px; font-weight: 600; color: var(--text-1); letter-spacing: 0.02em; }
+  .ac-name { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ac-exchange { font-size: 10px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+  .ac-empty { padding: 12px; font-size: 12px; color: var(--text-3); text-align: center; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-label { font-size: 11px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .stat-value { font-size: 18px; font-weight: 600; }
+  .stat-value.profit { color: var(--profit); }
+  .stat-value.loss { color: var(--loss); }
+  .stat-value.breakeven { color: var(--breakeven); }
+
+  .results-grid { display: grid; grid-template-columns: 2fr 3fr; gap: 24px; }
+
+  .section-title { font-size: 11px; font-weight: 500; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+
+  .chart-container { position: relative; height: 420px; }
+
+  .table-wrap { max-height: 420px; overflow: auto; border-radius: 8px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { position: sticky; top: 0; z-index: 2; }
+  th {
+    background: var(--surface-el); padding: 8px 8px; text-align: right;
+    font-size: 10px; font-weight: 500; color: var(--text-2); text-transform: uppercase;
+    letter-spacing: 0.04em; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  th:first-child { text-align: left; position: sticky; left: 0; z-index: 3; background: var(--surface-el); }
+  td { padding: 6px 8px; text-align: right; border-bottom: 1px solid rgba(42,42,58,0.4); white-space: nowrap; font-size: 12px; }
+  td:first-child { text-align: left; color: var(--text-1); position: sticky; left: 0; background: inherit; z-index: 1; }
+  tr:nth-child(odd) td { background: var(--surface); }
+  tr:nth-child(even) td { background: rgba(26,26,37,0.3); }
+  tr:nth-child(odd) td:first-child { background: var(--surface); }
+  tr:nth-child(even) td:first-child { background: #101018; }
+  tr:hover td { background: rgba(26,26,37,0.7) !important; }
+  .cell-profit { color: var(--profit); }
+  .cell-loss { color: var(--loss); }
+  .cell-zero { color: var(--text-3); }
+
+  @media (max-width: 960px) {
+    .results-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr; }
+  }
+
+  .gap-24 { display: flex; flex-direction: column; gap: 24px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div>
+      <h1>Options Payoff Calculator</h1>
+      <p>Analyze P&L across price scenarios and time horizons</p>
+    </div>
+    <div class="header-right">
+      <div id="headerSymbol" class="symbol-badge mono"></div>
+      <button id="resetBtn" class="reset-btn">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5v4h4"/><path d="M2.8 9.5a5.5 5.5 0 1 0 1.1-4L2.5 6.5"/></svg>
+        Reset
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="container gap-24">
+  <div class="card">
+    <!-- Row 1 -->
+    <div class="input-row">
+      <div class="form-group ticker-wrap">
+        <label class="form-label">Ticker</label>
+        <input id="tickerInput" type="text" placeholder="AAPL" class="mono" style="font-size:16px;letter-spacing:0.04em;width:100%" autocomplete="off" spellcheck="false">
+        <div id="acMenu" class="autocomplete-menu"></div>
+      </div>
+      <div id="quoteLoading" class="spinner-wrap hidden"><div class="spinner"></div></div>
+      <div id="quoteError" class="error-text hidden"></div>
+      <div id="quoteDisplay" class="quote-display hidden">
+        <span id="quoteName" class="quote-name"></span>
+        <span id="quotePrice" class="quote-price mono"></span>
+        <span id="quoteChange" class="quote-change mono"></span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Position</label>
+        <div id="positionDropdown" class="dropdown" style="width:160px">
+          <div class="dropdown-trigger" data-value="buy">Buy (Long)</div>
+          <div class="dropdown-menu">
+            <div class="dropdown-item selected" data-value="buy">Buy (Long)</div>
+            <div class="dropdown-item" data-value="write">Write (Short)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2 -->
+    <div id="row2" class="input-row hidden">
+      <div class="form-group" style="width:210px">
+        <label class="form-label">Expiration</label>
+        <div id="expirationDropdown" class="dropdown">
+          <div class="dropdown-trigger placeholder disabled">Select expiration</div>
+          <div class="dropdown-menu"></div>
+        </div>
+      </div>
+      <div id="contractLoading" class="spinner-wrap hidden"><div class="spinner"></div><span>Loading contracts...</span></div>
+      <div class="form-group" style="min-width:300px;flex:1" id="contractGroup">
+        <label class="form-label">Contract</label>
+        <div id="contractDropdown" class="dropdown">
+          <div class="dropdown-trigger placeholder disabled">Select contract</div>
+          <div class="dropdown-menu"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3 -->
+    <div id="row3" class="input-row hidden">
+      <div class="form-group" style="width:150px">
+        <label class="form-label">Premium (per share)</label>
+        <input id="premiumInput" type="number" step="0.01" min="0" class="mono" placeholder="0.00">
+      </div>
+      <div id="totalPremium" class="helper-text"></div>
+      <div class="form-group" style="width:110px">
+        <label class="form-label">Contracts</label>
+        <input id="quantityInput" type="number" min="1" step="1" value="1" class="mono">
+      </div>
+      <div class="form-group" style="align-self:flex-end">
+        <button id="calcBtn" class="btn" disabled>Calculate Payoff</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="emptyState" class="empty-state">Enter a stock ticker to begin</div>
+
+  <div id="results" class="hidden">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Max Profit</div><div id="statMaxProfit" class="stat-value profit mono"></div></div>
+      <div class="stat-card"><div class="stat-label">Max Loss</div><div id="statMaxLoss" class="stat-value loss mono"></div></div>
+      <div class="stat-card"><div class="stat-label">Breakeven</div><div id="statBreakeven" class="stat-value breakeven mono"></div></div>
+    </div>
+    <div class="results-grid">
+      <div class="card">
+        <div class="section-title">Payoff Table</div>
+        <div class="table-wrap" id="tableWrap"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Payoff Diagram</div>
+        <div class="chart-container"><canvas id="payoffChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let quoteData = null;
+let optionsCache = {};
+let allContracts = [];
+let selectedContract = null;
+let payoffChart = null;
+let positionValue = "buy";
+let expirationValue = "";
+let contractValue = "";
+
+const $ = (id) => document.getElementById(id);
+
+// ── Proxy fetch with fallback ──
+async function proxyFetch(url) {
+  const proxies = [
+    `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+  let lastErr;
+  for (const p of proxies) {
+    try {
+      const r = await fetch(p);
+      if (r.ok) return r;
+      lastErr = new Error(`HTTP ${r.status}`);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("All proxies failed");
+}
+
+// ── Custom Dropdown Logic ──
+function setupDropdown(el, onChange) {
+  const trigger = el.querySelector(".dropdown-trigger");
+  trigger.addEventListener("click", (e) => {
+    if (trigger.classList.contains("disabled")) return;
+    e.stopPropagation();
+    closeAllDropdowns();
+    el.classList.toggle("open");
+  });
+  el.addEventListener("click", (e) => {
+    const item = e.target.closest(".dropdown-item");
+    if (!item) return;
+    const val = item.dataset.value;
+    const label = item.textContent;
+    trigger.textContent = label;
+    trigger.dataset.value = val;
+    trigger.classList.remove("placeholder");
+    el.querySelectorAll(".dropdown-item").forEach(i => i.classList.remove("selected"));
+    item.classList.add("selected");
+    el.classList.remove("open");
+    if (onChange) onChange(val, item);
+  });
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll(".dropdown.open").forEach(d => d.classList.remove("open"));
+  closeAC();
+}
+document.addEventListener("click", closeAllDropdowns);
+
+function setDropdownDisabled(el, disabled) {
+  const trigger = el.querySelector(".dropdown-trigger");
+  if (disabled) trigger.classList.add("disabled");
+  else trigger.classList.remove("disabled");
+}
+
+function resetDropdown(el, placeholderText) {
+  const trigger = el.querySelector(".dropdown-trigger");
+  trigger.textContent = placeholderText;
+  trigger.dataset.value = "";
+  trigger.classList.add("placeholder");
+  el.querySelector(".dropdown-menu").innerHTML = "";
+  setDropdownDisabled(el, true);
+  el.classList.remove("open");
+}
+
+function populateDropdown(el, items, groupBy) {
+  const menu = el.querySelector(".dropdown-menu");
+  menu.innerHTML = "";
+  if (groupBy) {
+    for (const group of items) {
+      const lbl = document.createElement("div");
+      lbl.className = "dropdown-group-label";
+      lbl.textContent = group.label;
+      menu.appendChild(lbl);
+      for (const item of group.items) {
+        const div = document.createElement("div");
+        div.className = "dropdown-item";
+        div.dataset.value = item.value;
+        div.textContent = item.label;
+        menu.appendChild(div);
+      }
+    }
+  } else {
+    for (const item of items) {
+      const div = document.createElement("div");
+      div.className = "dropdown-item";
+      div.dataset.value = item.value;
+      div.textContent = item.label;
+      menu.appendChild(div);
+    }
+  }
+  setDropdownDisabled(el, false);
+}
+
+// ── Init dropdowns ──
+const positionDropdown = $("positionDropdown");
+const expirationDropdown = $("expirationDropdown");
+const contractDropdown = $("contractDropdown");
+
+setupDropdown(positionDropdown, (val) => {
+  positionValue = val;
+  $("results").classList.add("hidden");
+  updateEmptyState();
+});
+setupDropdown(expirationDropdown, (val) => {
+  expirationValue = val;
+  onExpirationChange(val);
+});
+setupDropdown(contractDropdown, (val) => {
+  contractValue = val;
+  onContractChange(val);
+});
+
+// ── Formatting ──
+function fmtCurrency(v) { return "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtSigned(v) { return (v < 0 ? "-" : "") + fmtCurrency(v); }
+function fmtPercent(v) { return (v >= 0 ? "+" : "") + v.toFixed(2) + "%"; }
+function fmtDate(iso) { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+function fmtShortDate(iso) { const d = new Date(iso + "T12:00:00"); return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+
+// ── Yahoo Finance search (autocomplete) ──
+async function fetchSearch(query) {
+  try {
+    const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&listsCount=0`;
+    const resp = await proxyFetch(url);
+    const json = await resp.json();
+    return (json.quotes || [])
+      .filter(q => q.quoteType === "EQUITY" || q.quoteType === "ETF" || q.quoteType === "FUTURE")
+      .map(q => ({
+        symbol: q.symbol,
+        name: q.shortname || q.longname || q.symbol,
+        exchange: q.exchDisp || q.exchange || "",
+        type: q.quoteType,
+      }));
+  } catch { return []; }
+}
+
+// ── Local Next.js API (works when running: npm run dev) ──
+async function localApiFetch(path) {
+  const resp = await fetch(`http://localhost:3000${path}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const json = await resp.json();
+  if (json.error) throw new Error(json.error);
+  return json;
+}
+
+// ── Yahoo Finance via local API or CORS proxy fallback ──
+async function fetchQuote(symbol) {
+  // Try local Next.js API first
+  try {
+    const data = await localApiFetch(`/api/quote?symbol=${encodeURIComponent(symbol)}`);
+    return {
+      symbol: data.symbol,
+      shortName: data.shortName,
+      price: data.regularMarketPrice,
+      prevClose: data.regularMarketPrice - (data.regularMarketChange || 0),
+    };
+  } catch { /* fall through to CORS proxies */ }
+
+  // Fall back to CORS proxies
+  const urls = [
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
+  ];
+  for (const url of urls) {
+    try {
+      const resp = await proxyFetch(url);
+      const json = await resp.json();
+      if (!json.chart?.result?.[0]) continue;
+      const meta = json.chart.result[0].meta;
+      if (!meta.regularMarketPrice) continue;
+      return {
+        symbol: meta.symbol,
+        shortName: meta.shortName || meta.symbol,
+        price: meta.regularMarketPrice,
+        prevClose: meta.chartPreviousClose || meta.regularMarketPreviousClose || meta.previousClose || meta.regularMarketPrice,
+      };
+    } catch { /* try next */ }
+  }
+  throw new Error("Symbol not found");
+}
+
+async function fetchOptions(symbol, dateEpoch) {
+  // Try local Next.js API first
+  try {
+    let path = `/api/options?symbol=${encodeURIComponent(symbol)}`;
+    if (dateEpoch) {
+      const dateStr = new Date(dateEpoch * 1000).toISOString().split('T')[0];
+      path += `&date=${dateStr}`;
+    }
+    const data = await localApiFetch(path);
+    const isoToEpoch = iso => Math.floor(new Date(iso + 'T12:00:00Z').getTime() / 1000);
+    return {
+      expirationDates: data.expirationDates.map(isoToEpoch),
+      calls: data.calls.map(c => ({ ...c, expiration: isoToEpoch(c.expiration) })),
+      puts: data.puts.map(c => ({ ...c, expiration: isoToEpoch(c.expiration) })),
+      underlyingPrice: data.underlyingPrice,
+    };
+  } catch { /* fall through to CORS proxies */ }
+
+  // Fall back to CORS proxies
+  let url = `https://query1.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}`;
+  if (dateEpoch) url += `?date=${dateEpoch}`;
+  const resp = await proxyFetch(url);
+  const json = await resp.json();
+  if (!json.optionChain?.result?.[0]) throw new Error("No options data");
+  const r = json.optionChain.result[0];
+  return {
+    expirationDates: r.expirationDates || [],
+    calls: (r.options[0]?.calls || []).map(c => ({ ...c, type: "call" })),
+    puts: (r.options[0]?.puts || []).map(c => ({ ...c, type: "put" })),
+    underlyingPrice: r.quote?.regularMarketPrice || 0,
+  };
+}
+
+// ── Black-Scholes ──
+function cnd(x) {
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const sign=x<0?-1:1, k=1/(1+p*Math.abs(x));
+  return 0.5*(1+sign*(1-((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k*Math.exp(-0.5*x*x)));
+}
+function bsPrice(S,K,T,r,sigma,type) {
+  if(T<=0) return type==="call"?Math.max(S-K,0):Math.max(K-S,0);
+  if(sigma<=0.001){const dK=K*Math.exp(-r*T);return type==="call"?Math.max(S-dK,0):Math.max(dK-S,0);}
+  const sqrtT=Math.sqrt(T),d1=(Math.log(S/K)+(r+0.5*sigma*sigma)*T)/(sigma*sqrtT),d2=d1-sigma*sqrtT;
+  return type==="call"?S*cnd(d1)-K*Math.exp(-r*T)*cnd(d2):K*Math.exp(-r*T)*cnd(-d2)-S*cnd(-d1);
+}
+
+// ── Payoff with weekly periods ──
+function calcPayoff(contract, position, premium, quantity, currentPrice) {
+  const mult=100, totalPrem=premium*quantity*mult, r=0.05;
+  const sigma=contract.impliedVolatility||0.3;
+  const nowEpoch=Math.floor(Date.now()/1000);
+  const expEpoch=contract.expiration;
+  const totalDays=Math.max(1,Math.round((expEpoch-nowEpoch)/86400));
+  const type=contract.type, strike=contract.strike;
+
+  const minP=Math.max(1,Math.floor(currentPrice*0.7));
+  const maxP=Math.ceil(currentPrice*1.3);
+  const step=currentPrice<50?1:currentPrice<200?2.5:currentPrice<500?5:10;
+
+  // Build weekly periods from now until expiration
+  const periods = [];
+  const nowDate = new Date();
+  nowDate.setHours(0,0,0,0);
+  const expDate = new Date(expEpoch * 1000);
+  expDate.setHours(0,0,0,0);
+
+  // Each Friday (or every 7 days) from purchase to expiration
+  const weekMs = 7 * 86400000;
+  let cursor = new Date(nowDate.getTime() + weekMs);
+  let weekNum = 1;
+  while (cursor < expDate) {
+    const iso = cursor.toISOString().split("T")[0];
+    const daysFromNow = Math.round((cursor - nowDate) / 86400000);
+    const daysToExp = totalDays - daysFromNow;
+    if (daysToExp > 0) {
+      periods.push({ key: `w${weekNum}`, label: `Wk ${weekNum}`, sublabel: fmtShortDate(iso), daysToExp });
+    }
+    cursor = new Date(cursor.getTime() + weekMs);
+    weekNum++;
+  }
+  // Always add expiration as the last column
+  periods.push({ key: "exp", label: "Exp", sublabel: fmtShortDate(expDate.toISOString().split("T")[0]), daysToExp: 0 });
+
+  const data = [];
+  let breakeven = null, prevPnl = null;
+
+  for (let S = minP; S <= maxP; S += step) {
+    const row = { stockPrice: S };
+    for (const p of periods) {
+      if (p.daysToExp === 0) {
+        // At expiration
+        const intr = type === "call" ? Math.max(S-strike,0) : Math.max(strike-S,0);
+        row[p.key] = position === "buy" ? intr*quantity*mult - totalPrem : totalPrem - intr*quantity*mult;
+      } else {
+        const T = p.daysToExp / 365;
+        const tv = bsPrice(S, strike, T, r, sigma, type);
+        const pv = tv * quantity * mult;
+        row[p.key] = position === "buy" ? pv - totalPrem : totalPrem - pv;
+      }
+    }
+    // Breakeven from expiration column
+    const expPnl = row["exp"];
+    if (prevPnl !== null && breakeven === null) {
+      if ((prevPnl < 0 && expPnl >= 0) || (prevPnl > 0 && expPnl <= 0)) breakeven = S;
+    }
+    prevPnl = expPnl;
+    data.push(row);
+  }
+
+  return { data, periods, breakeven };
+}
+
+// ── Autocomplete ──
+let acResults = [];
+let acActiveIdx = -1;
+let acDebounce = null;
+const acMenu = $("acMenu");
+
+function showAC(results) {
+  acResults = results;
+  acActiveIdx = -1;
+  acMenu.innerHTML = "";
+  if (!results.length) {
+    acMenu.innerHTML = `<div class="ac-empty">No results</div>`;
+    acMenu.classList.add("open");
+    return;
+  }
+  results.forEach((r, i) => {
+    const el = document.createElement("div");
+    el.className = "ac-item";
+    el.dataset.idx = i;
+    el.innerHTML = `
+      <div class="ac-item-left">
+        <span class="ac-symbol">${r.symbol}</span>
+        <span class="ac-name">${r.name}</span>
+      </div>
+      <span class="ac-exchange">${r.exchange}</span>`;
+    el.addEventListener("mousedown", (e) => {
+      e.preventDefault(); // prevent blur before mousedown completes
+      selectAC(i);
+    });
+    acMenu.appendChild(el);
+  });
+  acMenu.classList.add("open");
+}
+
+function closeAC() {
+  acMenu.classList.remove("open");
+  acActiveIdx = -1;
+}
+
+function setACActive(idx) {
+  const items = acMenu.querySelectorAll(".ac-item");
+  items.forEach(el => el.classList.remove("active"));
+  acActiveIdx = Math.max(-1, Math.min(idx, acResults.length - 1));
+  if (acActiveIdx >= 0) items[acActiveIdx]?.classList.add("active");
+}
+
+function selectAC(idx) {
+  const r = acResults[idx];
+  if (!r) return;
+  closeAC();
+  clearTimeout(debounceTimer);
+  clearTimeout(acDebounce);
+  $("tickerInput").value = r.symbol;
+  loadTicker(r.symbol);
+}
+
+// ── UI Helpers ──
+let debounceTimer = null;
+
+function resetAll() {
+  clearTimeout(debounceTimer);
+  quoteData = null;
+  optionsCache = {};
+  allContracts = [];
+  selectedContract = null;
+  positionValue = "buy";
+  expirationValue = "";
+  contractValue = "";
+
+  $("tickerInput").value = "";
+  $("headerSymbol").textContent = "";
+  $("quoteDisplay").classList.add("hidden");
+  $("quoteError").classList.add("hidden");
+  $("quoteLoading").classList.add("hidden");
+  $("row2").classList.add("hidden");
+  $("row3").classList.add("hidden");
+  $("results").classList.add("hidden");
+  $("premiumInput").value = "";
+  $("totalPremium").textContent = "";
+  $("calcBtn").disabled = true;
+
+  // Reset dropdowns
+  const posTrigger = positionDropdown.querySelector(".dropdown-trigger");
+  posTrigger.textContent = "Buy (Long)";
+  posTrigger.dataset.value = "buy";
+  posTrigger.classList.remove("placeholder");
+  positionDropdown.querySelectorAll(".dropdown-item").forEach(i => i.classList.remove("selected"));
+  positionDropdown.querySelector('[data-value="buy"]').classList.add("selected");
+
+  resetDropdown(expirationDropdown, "Select expiration");
+  resetDropdown(contractDropdown, "Select contract");
+  $("quantityInput").value = "1";
+
+  if (payoffChart) { payoffChart.destroy(); payoffChart = null; }
+  closeAC();
+  clearTimeout(acDebounce);
+
+  updateEmptyState();
+  $("tickerInput").focus();
+}
+
+function updateEmptyState() {
+  if (!$("results").classList.contains("hidden")) { $("emptyState").classList.add("hidden"); return; }
+  $("emptyState").classList.remove("hidden");
+  if (!quoteData) $("emptyState").textContent = "Enter a stock ticker to begin";
+  else if (!selectedContract) $("emptyState").textContent = "Select an options contract";
+  else $("emptyState").textContent = "Configure your position and calculate";
+}
+
+function updateTotalPremium() {
+  const prem = parseFloat($("premiumInput").value) || 0;
+  const qty = parseInt($("quantityInput").value) || 1;
+  $("totalPremium").textContent = prem > 0 ? `Total: ${fmtCurrency(prem * qty * 100)}` : "";
+  $("calcBtn").disabled = !(selectedContract && prem > 0);
+}
+
+// ── Load ticker (shared by input debounce + autocomplete select) ──
+async function loadTicker(sym) {
+  clearTimeout(debounceTimer);
+  quoteData = null;
+  $("quoteDisplay").classList.add("hidden");
+  $("quoteError").classList.add("hidden");
+  $("headerSymbol").textContent = "";
+  $("row2").classList.add("hidden");
+  selectedContract = null; allContracts = [];
+  $("row3").classList.add("hidden");
+  $("results").classList.add("hidden");
+  resetDropdown(expirationDropdown, "Select expiration");
+  resetDropdown(contractDropdown, "Select contract");
+  updateEmptyState();
+
+  if (!sym) { $("quoteLoading").classList.add("hidden"); return; }
+
+  $("quoteLoading").classList.remove("hidden");
+
+  // Step 1: fetch quote — hard failure, show error and stop
+  try {
+    const q = await fetchQuote(sym);
+    quoteData = q;
+    $("quoteName").textContent = q.shortName;
+    $("quotePrice").textContent = fmtCurrency(q.price);
+    const change = q.price - q.prevClose;
+    const changePct = (change / q.prevClose) * 100;
+    $("quoteChange").textContent = `${change >= 0 ? "+" : ""}${change.toFixed(2)} (${fmtPercent(changePct)})`;
+    $("quoteChange").className = `quote-change mono ${change >= 0 ? "up" : "down"}`;
+    $("quoteDisplay").classList.remove("hidden");
+    $("headerSymbol").textContent = q.symbol;
+  } catch {
+    $("quoteError").textContent = `Could not find "${sym}"`;
+    $("quoteError").classList.remove("hidden");
+    $("quoteLoading").classList.add("hidden");
+    updateEmptyState();
+    return;
+  }
+
+  // Step 2: fetch options chain — soft failure, quote stays visible
+  try {
+    $("row2").classList.remove("hidden");
+    const opts = await fetchOptions(sym);
+    optionsCache[sym] = opts;
+    const items = opts.expirationDates.map(epoch => {
+      const iso = new Date(epoch * 1000).toISOString().split("T")[0];
+      return { value: String(epoch), label: fmtDate(iso) };
+    });
+    populateDropdown(expirationDropdown, items);
+  } catch {
+    $("quoteError").textContent = `Options unavailable for "${sym}"`;
+    $("quoteError").classList.remove("hidden");
+  } finally {
+    $("quoteLoading").classList.add("hidden");
+  }
+  updateEmptyState();
+}
+
+// ── Event handlers ──
+$("resetBtn").addEventListener("click", resetAll);
+
+$("tickerInput").addEventListener("input", () => {
+  $("tickerInput").value = $("tickerInput").value.toUpperCase();
+  const sym = $("tickerInput").value.trim();
+
+  clearTimeout(debounceTimer);
+  clearTimeout(acDebounce);
+  closeAC();
+
+  if (!sym) {
+    $("quoteDisplay").classList.add("hidden");
+    $("quoteError").classList.add("hidden");
+    $("quoteLoading").classList.add("hidden");
+    $("row2").classList.add("hidden");
+    $("row3").classList.add("hidden");
+    $("results").classList.add("hidden");
+    quoteData = null;
+    updateEmptyState();
+    return;
+  }
+
+  // Autocomplete: fire after 180ms
+  acDebounce = setTimeout(async () => {
+    const results = await fetchSearch(sym);
+    if ($("tickerInput").value.trim() === sym && results.length) showAC(results);
+  }, 180);
+
+  // Quote fetch: fire after 600ms (only if user hasn't picked from AC)
+  debounceTimer = setTimeout(() => loadTicker(sym), 600);
+});
+
+// Keyboard nav for autocomplete
+$("tickerInput").addEventListener("keydown", (e) => {
+  if (!acMenu.classList.contains("open")) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); setACActive(acActiveIdx + 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); setACActive(acActiveIdx - 1); }
+  else if (e.key === "Enter") { e.preventDefault(); if (acActiveIdx >= 0) selectAC(acActiveIdx); }
+  else if (e.key === "Escape") { e.preventDefault(); closeAC(); }
+});
+
+$("tickerInput").addEventListener("blur", () => {
+  // Small delay so mousedown on AC item fires first
+  setTimeout(closeAC, 150);
+});
+
+async function onExpirationChange(epoch) {
+  resetDropdown(contractDropdown, "Select contract");
+  selectedContract = null;
+  $("row3").classList.add("hidden");
+  $("results").classList.add("hidden");
+  if (!epoch) { updateEmptyState(); return; }
+
+  const sym = $("tickerInput").value.trim();
+  const cacheKey = `${sym}:${epoch}`;
+
+  $("contractLoading").classList.remove("hidden");
+  $("contractGroup").classList.add("hidden");
+
+  try {
+    let opts = optionsCache[cacheKey];
+    if (!opts) { opts = await fetchOptions(sym, epoch); optionsCache[cacheKey] = opts; }
+
+    allContracts = [...opts.calls, ...opts.puts];
+    const groups = [];
+    if (opts.calls.length > 0) {
+      groups.push({
+        label: "Calls",
+        items: opts.calls.map(c => ({
+          value: c.contractSymbol,
+          label: `$${c.strike} Call  -  $${(c.lastPrice||0).toFixed(2)}  ${c.volume ? `(vol: ${c.volume.toLocaleString()})` : "(no vol)"}`,
+        })),
+      });
+    }
+    if (opts.puts.length > 0) {
+      groups.push({
+        label: "Puts",
+        items: opts.puts.map(c => ({
+          value: c.contractSymbol,
+          label: `$${c.strike} Put  -  $${(c.lastPrice||0).toFixed(2)}  ${c.volume ? `(vol: ${c.volume.toLocaleString()})` : "(no vol)"}`,
+        })),
+      });
+    }
+    populateDropdown(contractDropdown, groups, true);
+  } catch {
+    resetDropdown(contractDropdown, "Error loading");
+  } finally {
+    $("contractLoading").classList.add("hidden");
+    $("contractGroup").classList.remove("hidden");
+  }
+  updateEmptyState();
+}
+
+function onContractChange(sym) {
+  selectedContract = allContracts.find(c => c.contractSymbol === sym) || null;
+  $("results").classList.add("hidden");
+  if (selectedContract) {
+    $("premiumInput").value = (selectedContract.lastPrice || 0).toFixed(2);
+    $("row3").classList.remove("hidden");
+    updateTotalPremium();
+  } else {
+    $("row3").classList.add("hidden");
+  }
+  updateEmptyState();
+}
+
+$("premiumInput").addEventListener("input", () => { updateTotalPremium(); $("results").classList.add("hidden"); updateEmptyState(); });
+$("quantityInput").addEventListener("input", () => { updateTotalPremium(); $("results").classList.add("hidden"); updateEmptyState(); });
+
+$("calcBtn").addEventListener("click", () => {
+  if (!selectedContract || !quoteData) return;
+  const premium = parseFloat($("premiumInput").value) || 0;
+  const quantity = Math.max(1, parseInt($("quantityInput").value) || 1);
+
+  const { data, periods, breakeven } = calcPayoff(selectedContract, positionValue, premium, quantity, quoteData.price);
+
+  const expVals = data.map(d => d["exp"]);
+  $("statMaxProfit").textContent = fmtSigned(Math.max(...expVals));
+  $("statMaxLoss").textContent = fmtSigned(Math.min(...expVals));
+  $("statBreakeven").textContent = breakeven ? fmtCurrency(breakeven) : "\u2014";
+
+  renderChart(data, periods, breakeven, selectedContract.strike);
+  renderTable(data, periods);
+
+  $("results").classList.remove("hidden");
+  $("emptyState").classList.add("hidden");
+  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+// ── Chart (weekly lines) ──
+function renderChart(data, periods, breakeven, strike) {
+  const palette = ["#4F8CFF","#8B5CF6","#06B6D4","#F59E0B","#EC4899","#10B981","#F97316","#6366F1","#14B8A6","#E11D48","#A855F7","#0EA5E9","#D946EF"];
+  const ctx = $("payoffChart").getContext("2d");
+  if (payoffChart) payoffChart.destroy();
+
+  // For the chart, show a curated subset: first week, ~25%, ~50%, ~75%, and expiration
+  let chartPeriods = [];
+  if (periods.length <= 6) {
+    chartPeriods = [...periods];
+  } else {
+    const idxs = [0, Math.floor(periods.length*0.25), Math.floor(periods.length*0.5), Math.floor(periods.length*0.75), periods.length-1];
+    const seen = new Set();
+    for (const i of idxs) { if (!seen.has(i)) { seen.add(i); chartPeriods.push(periods[i]); } }
+  }
+
+  const datasets = chartPeriods.map((p, i) => ({
+    label: p.key === "exp" ? "At Expiration" : `${p.label} (${p.sublabel})`,
+    data: data.map(d => d[p.key]),
+    borderColor: palette[i % palette.length],
+    borderWidth: p.key === "exp" ? 2.5 : 1.5,
+    pointRadius: 0, pointHitRadius: 8, pointHoverRadius: 3,
+    pointHoverBackgroundColor: palette[i % palette.length],
+    tension: 0.3, fill: false,
+  }));
+
+  payoffChart = new Chart(ctx, {
+    type: "line",
+    data: { labels: data.map(d => d.stockPrice), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#8888A0", font: { size: 11, family: "Inter" }, boxWidth: 12, padding: 14 } },
+        tooltip: {
+          backgroundColor: "#12121A", borderColor: "#2A2A3A", borderWidth: 1,
+          titleColor: "#8888A0", titleFont: { family: "Inter", size: 11 },
+          bodyFont: { family: "Inter", size: 11 }, padding: 12,
+          callbacks: {
+            title: (items) => `Stock: $${items[0].label}`,
+            label: (item) => ` ${item.dataset.label}: ${fmtSigned(item.raw)}`,
+            labelColor: (item) => ({ borderColor: "transparent", backgroundColor: item.raw >= 0 ? "#00D4AA" : "#FF4466", borderWidth: 0, borderRadius: 2 }),
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: "#1A1A25" }, ticks: { color: "#8888A0", font: { size: 11 }, callback: (_,i) => `$${data[i]?.stockPrice||""}`, maxTicksLimit: 12 }, border: { color: "#2A2A3A" } },
+        y: { grid: { color: "#1A1A25" }, ticks: { color: "#8888A0", font: { size: 11 }, callback: v => Math.abs(v)>=1000?`$${(v/1000).toFixed(1)}k`:`$${v.toFixed(0)}` }, border: { color: "#2A2A3A" } },
+      },
+    },
+    plugins: [{
+      id: "overlays",
+      afterDraw(chart) {
+        const yS=chart.scales.y, xS=chart.scales.x, ctx=chart.ctx;
+        // Zero line
+        const z=yS.getPixelForValue(0);
+        if(z>=yS.top&&z<=yS.bottom){ctx.save();ctx.strokeStyle="#FFB84D";ctx.lineWidth=1;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(xS.left,z);ctx.lineTo(xS.right,z);ctx.stroke();ctx.restore();}
+        // Strike
+        const si=data.findIndex(d=>d.stockPrice>=strike);
+        if(si>=0){const sx=xS.getPixelForValue(si);ctx.save();ctx.strokeStyle="#555570";ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sx,yS.top);ctx.lineTo(sx,yS.bottom);ctx.stroke();ctx.font="10px Inter";ctx.fillStyle="#555570";ctx.fillText("Strike",sx+4,yS.top+12);ctx.restore();}
+        // Breakeven
+        if(breakeven){const bi=data.findIndex(d=>d.stockPrice>=breakeven);if(bi>=0){const bx=xS.getPixelForValue(bi);ctx.save();ctx.strokeStyle="#FFB84D";ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(bx,yS.top);ctx.lineTo(bx,yS.bottom);ctx.stroke();ctx.font="10px Inter";ctx.fillStyle="#FFB84D";ctx.fillText("B/E",bx+4,yS.top+12);ctx.restore();}}
+      },
+    }],
+  });
+}
+
+// ── Table (weekly columns) ──
+function renderTable(data, periods) {
+  let html = "<table><thead><tr><th>Price</th>";
+  for (const p of periods) {
+    html += `<th>${p.label}<br><span style="font-weight:400;opacity:0.6;font-size:9px">${p.sublabel}</span></th>`;
+  }
+  html += "</tr></thead><tbody>";
+  for (const row of data) {
+    html += `<tr><td class="mono">$${row.stockPrice.toFixed(2)}</td>`;
+    for (const p of periods) {
+      const v = row[p.key] || 0;
+      const cls = v > 0.5 ? "cell-profit" : v < -0.5 ? "cell-loss" : "cell-zero";
+      html += `<td class="mono ${cls}">${fmtSigned(v)}</td>`;
+    }
+    html += "</tr>";
+  }
+  html += "</tbody></table>";
+  $("tableWrap").innerHTML = html;
+}
+
+updateEmptyState();
+$("tickerInput").focus();
+</script>
+</body>
+</html>
